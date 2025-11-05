@@ -1,0 +1,22 @@
+{
+  "placeholderImages": [
+    {
+      "id": "user-avatar",
+      "description": "User avatar for the user navigation menu.",
+      "imageUrl": "https://images.unsplash.com/photo-1521146764736-56c929d59c83?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxwZXJzb24lMjBmYWNlfGVufDB8fHx8MTc2MjA3ODM0OHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "person face"
+    },
+    {
+      "id": "log-01",
+      "description": "Photo of concrete waste.",
+      "imageUrl": "https://images.unsplash.com/photo-1635605007233-f89705544846?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxjb25jcmV0ZSUyMHJ1YmJsZXxlbnwwfHx8fDE3NjIxMTA0MDB8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "concrete rubble"
+    },
+    {
+      "id": "log-05",
+      "description": "Photo of a large pile of concrete waste.",
+      "imageUrl": "https://images.unsplash.com/photo-1592466404019-2dea49115b75?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHxjb25zdHJ1Y3Rpb24lMjB3YXN0ZXxlbnwwfHx8fDE3NjIxMTA0MDB8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "construction waste"
+    }
+  ]
+}
