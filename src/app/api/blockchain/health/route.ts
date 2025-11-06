@@ -2,8 +2,10 @@ import { ethers } from 'ethers';
 import { NextRequest, NextResponse } from 'next/server';
 
 // Initialize provider
-const provider = new ethers.providers.JsonRpcProvider(process.env.NEXT_PUBLIC_ETH_RPC_URL);
-const wallet = new ethers.Wallet(process.env.MAINNET_PRIVATE_KEY || '', provider);
+import { config } from '@/lib/config';
+
+const provider = new ethers.providers.JsonRpcProvider(config.alchemy.rpcUrl);
+const wallet = provider;
 
 // Contract addresses
 const milestonePaymentsAddress = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';

@@ -1,9 +1,9 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  env: {
-    NEXT_PUBLIC_ALCHEMY_API_KEY: process.env.NEXT_PUBLIC_ALCHEMY_API_KEY,
-    NEXT_PUBLIC_ETH_RPC_URL: process.env.NEXT_PUBLIC_ETH_RPC_URL,
+  publicRuntimeConfig: {
+    NEXT_PUBLIC_ALCHEMY_API_KEY: "-MbyWQTofwSPQu_Xlxfan",
+    NEXT_PUBLIC_ETH_RPC_URL: "https://eth-mainnet.g.alchemy.com/v2/-MbyWQTofwSPQu_Xlxfan",
   },
   typescript: {
     ignoreBuildErrors: true,
