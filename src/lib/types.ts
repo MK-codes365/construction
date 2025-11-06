@@ -17,4 +17,6 @@ export type ProjectSite = {
   manager: string;
   startDate: Date;
   squareMeters: number;
+  lat: number;
+  lng: number;
 };

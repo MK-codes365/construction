@@ -1,0 +1,77 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "D:\\construction\\blockchain\\contracts\\IncidentWasteLog.sol": {
+      "lastModificationDate": 1762376046925,
+      "contentHash": "9cc90219c6067f0be6e8365384ce0568",
+      "sourceName": "contracts/IncidentWasteLog.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "evmVersion": "paris",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "IncidentWasteLog"
+      ]
+    },
+    "D:\\construction\\blockchain\\contracts\\MilestonePayments.sol": {
+      "lastModificationDate": 1762376049457,
+      "contentHash": "e7fa3ce688edf2dda1a91822303ea026",
+      "sourceName": "contracts/MilestonePayments.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "evmVersion": "paris",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "MilestonePayments"
+      ]
+    }
+  }
+}

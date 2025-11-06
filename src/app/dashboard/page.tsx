@@ -17,7 +17,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { projectSites, wasteLogs, materialTypes } from '@/lib/data';
+import { projectSites, materialTypes } from '@/lib/data';
+import type { WasteLog } from '@/lib/types';
+import { fetchWasteLogs } from '@/services/arService';
 import { StatsCards } from '@/components/dashboard/stats-cards';
 import { WasteTrendsChart } from '@/components/dashboard/waste-trends-chart';
 import { TopMaterialsChart } from '@/components/dashboard/top-materials-chart';
@@ -35,6 +37,14 @@ import { Input } from '@/components/ui/input';
 import { DiversionRateChart } from '@/components/dashboard/diversion-rate-chart';
 import { Separator } from '@/components/ui/separator';
 import { AIChat } from '@/components/dashboard/ai-chat';
+import AISafetyMonitor from '@/components/ai/AISafetyMonitor';
+import RiskPredictor from '@/components/ai/RiskPredictor';
+import ARBlueprintViewer from '@/components/ar-vr/ARBlueprintViewer';
+
+import BlockchainEventsPanel from '@/components/dashboard/blockchain-events';
+
+// Importing VR Safety Training
+import VRSafetyTraining from '@/components/ar-vr/VRSafetyTraining.js';
 
 export default function DashboardPage() {
   const [date, setDate] = React.useState<DateRange | undefined>();
@@ -51,11 +61,28 @@ export default function DashboardPage() {
     setIsClient(true);
   }, []);
 
+  const [wasteLogs, setWasteLogs] = React.useState<WasteLog[]>([]);
+
+  React.useEffect(() => {
+    if (isClient) {
+      fetchWasteLogs().then(res => {
+        if (res.status === 'ok') {
+          // Convert date strings to Date objects for filtering
+          const logs: WasteLog[] = res.logs.map((log: any) => ({
+            ...log,
+            date: log.date ? new Date(log.date) : new Date(),
+          }));
+          setWasteLogs(logs);
+        }
+      });
+    }
+  }, [isClient]);
+
   const filteredLogs = React.useMemo(() => {
     if (!isClient || !date?.from || !date?.to) {
       return [];
     }
-    return wasteLogs.filter((log) => {
+    return wasteLogs.filter((log: WasteLog) => {
       const isAfterStartDate = log.date >= (date.from as Date);
       const isBeforeEndDate = log.date <= (date.to as Date);
       const inDateRange = isAfterStartDate && isBeforeEndDate;
@@ -73,7 +100,7 @@ export default function DashboardPage() {
 
       return inDateRange && matchesSite && matchesMaterial && matchesSearch;
     });
-  }, [date, selectedSite, selectedMaterial, searchTerm, isClient]);
+  }, [date, selectedSite, selectedMaterial, searchTerm, isClient, wasteLogs]);
 
   if (!isClient) {
     return null; // Or a loading skeleton
@@ -245,7 +272,68 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>AI Safety Monitor</CardTitle>
+            <CardDescription>
+              Real-time safety alerts and risk predictions powered by AI.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AISafetyMonitor />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Risk Predictor</CardTitle>
+            <CardDescription>
+              AI-powered risk score and incident estimate for your site.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RiskPredictor />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2 mt-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>AR Blueprint Viewer</CardTitle>
+            <CardDescription>
+              View construction blueprints in AR.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ARBlueprintViewer />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>VR Safety Training</CardTitle>
+            <CardDescription>
+              Interactive VR safety training modules.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <VRSafetyTraining />
+          </CardContent>
+        </Card>
+      </div>
       <AIChat logs={filteredLogs} />
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Blockchain Activity</CardTitle>
+          <CardDescription>
+            Recent blockchain events and proofs for audit and transparency.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <BlockchainEventsPanel />
+        </CardContent>
+      </Card>
     </div>
   );
 }

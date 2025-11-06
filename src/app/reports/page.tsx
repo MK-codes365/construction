@@ -41,6 +41,8 @@ import { projectSites, wasteLogs } from '@/lib/data';
 import type { WasteLog } from '@/lib/types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { anchorReportToBlockchain } from '@/lib/blockchain';
+import sha256 from 'crypto-js/sha256';
 
 const reportSchema = z.object({
   reportType: z.string(),
@@ -69,7 +71,16 @@ const convertToCSV = (data: any[], header: string[]) => {
 };
 
 // Function to trigger file download
-const downloadFile = (content: string, filename: string, mimeType: string) => {
+const downloadFile = async (content: string, filename: string, mimeType: string, description: string) => {
+  // Hash content and anchor to blockchain
+  const hash = sha256(content).toString();
+  const result = await anchorReportToBlockchain(hash, description);
+  // Show blockchain proof in toast
+  if (result.status === 'ok') {
+    window.alert(`Report anchored to blockchain!\nTx: ${result.txHash}\nBlock: ${result.blockNumber}`);
+  } else {
+    window.alert(`Blockchain anchoring failed: ${result.message}`);
+  }
   const blob = new Blob([content], { type: mimeType });
   const link = document.createElement('a');
   if (link.download !== undefined) {
@@ -87,15 +98,39 @@ const downloadPDF = (
   title: string,
   headers: string[],
   data: any[][],
-  filename: string
+  filename: string,
+  blockchainProof?: { txHash: string; blockNumber: number }
 ) => {
   const doc = new jsPDF();
   doc.text(title, 14, 20);
+  // Get the final Y position from autoTable's return value
+  // autoTable returns void, but attaches finalY to doc
   autoTable(doc, {
     startY: 25,
     head: [headers],
     body: data,
   });
+  // @ts-ignore
+  const y = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY : 25 + data.length * 10 + 20;
+  if (blockchainProof) {
+    doc.text('Blockchain Proof:', 14, y + 15);
+    
+    // Split the hash into chunks of 60 characters for better readability
+    const hash = blockchainProof.txHash;
+    const chunkSize = 60;
+    const hashChunks = hash.match(new RegExp(`.{1,${chunkSize}}`, 'g')) || [];
+    
+    // Write "Tx Hash:" label
+    doc.text('Tx Hash:', 14, y + 25);
+    
+    // Write each chunk of the hash on a new line, indented
+    hashChunks.forEach((chunk, index) => {
+      doc.text(chunk, 25, y + 25 + (index + 1) * 10);
+    });
+    
+    // Write block number below the hash
+    doc.text(`Block: ${blockchainProof.blockNumber}`, 14, y + 25 + (hashChunks.length + 1) * 10);
+  }
   doc.save(filename);
 };
 
@@ -109,8 +144,8 @@ export default function ReportsPage() {
       project: 'all',
       format: 'csv',
       dateRange: {
-        from: new Date(new Date().setMonth(new Date().getMonth() - 1)),
-        to: new Date(),
+        from: new Date('2024-01-01T00:00:00'),
+        to: new Date('2025-12-31T23:59:59'),
       },
     },
   });
@@ -214,14 +249,24 @@ export default function ReportsPage() {
         reportData,
         reportType === 'full' ? headers : Object.keys(reportData[0] || {})
       );
-      downloadFile(csvData, filename, 'text/csv;charset=utf-8;');
+  downloadFile(csvData, filename, 'text/csv;charset=utf-8;', reportTitle);
     } else if (fileFormat === 'pdf') {
       const pdfHeaders =
         reportType === 'full' ? headers : Object.keys(reportData[0] || {});
       const pdfBody = reportData.map((row) =>
         pdfHeaders.map((header) => row[header])
       );
-      downloadPDF(reportTitle, pdfHeaders, pdfBody, filename);
+      // For PDF, hash the raw data string
+      const pdfContent = JSON.stringify({ title: reportTitle, headers: pdfHeaders, body: pdfBody });
+      anchorReportToBlockchain(sha256(pdfContent).toString(), reportTitle).then((result) => {
+        if (result.status === 'ok') {
+          downloadPDF(reportTitle, pdfHeaders, pdfBody, filename, { txHash: result.txHash, blockNumber: result.blockNumber });
+          window.alert(`Report anchored to blockchain!\nTx: ${result.txHash}\nBlock: ${result.blockNumber}`);
+        } else {
+          downloadPDF(reportTitle, pdfHeaders, pdfBody, filename);
+          window.alert(`Blockchain anchoring failed: ${result.message}`);
+        }
+      });
     }
 
     toast({
@@ -232,6 +277,24 @@ export default function ReportsPage() {
 
   function onSubmit(values: ReportValues) {
     const { dateRange, project } = values;
+    // Require both dates
+    if (!dateRange.from || !dateRange.to) {
+      toast({
+        variant: 'destructive',
+        title: 'Date Range Required',
+        description: 'Please select both a start and end date for your report.',
+      });
+      return;
+    }
+    // Prevent invalid range
+    if (dateRange.from > dateRange.to) {
+      toast({
+        variant: 'destructive',
+        title: 'Invalid Date Range',
+        description: 'The start date cannot be after the end date.',
+      });
+      return;
+    }
     const filteredLogs = wasteLogs.filter((log) => {
       const inDateRange = isWithinInterval(log.date, {
         start: dateRange.from,

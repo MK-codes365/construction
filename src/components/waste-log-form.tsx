@@ -30,7 +30,8 @@ import { Calendar } from '@/components/ui/calendar';
 import { CalendarIcon, UploadCloud } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { projectSites, materialTypes, addWasteLog, wasteCauses } from '@/lib/data';
+import { projectSites, materialTypes, wasteCauses } from '@/lib/data';
+import { addWasteLogAR } from '@/services/arService';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect, useState } from 'react';
@@ -60,6 +61,16 @@ export function WasteLogForm() {
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
+    defaultValues: {
+      date: new Date(),
+      disposalMethod: 'Recycled',
+      quantity: 0,
+      site: '',
+      materialType: '',
+      binId: '',
+      cause: '',
+      photo: null,
+    },
   });
 
   useEffect(() => {
@@ -67,34 +78,41 @@ export function WasteLogForm() {
       form.reset({
         date: new Date(),
         disposalMethod: 'Recycled',
-        quantity: undefined,
-        site: undefined,
-        materialType: undefined,
+        quantity: 0,
+        site: '',
+        materialType: '',
         binId: '',
-        cause: undefined,
+        cause: '',
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isClient]);
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    addWasteLog({
-      materialType: values.materialType as any,
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    const log = {
+      materialType: values.materialType,
       quantity: values.quantity,
       date: values.date,
       site: values.site,
       disposalMethod: values.disposalMethod,
       binId: values.binId,
-      cause: values.cause as any,
-    });
-    
-    toast({
-      title: 'Log Submitted',
-      description: 'Your waste log has been successfully recorded.',
-    });
-    
-    // Redirect to dashboard to see the update
-    router.push('/dashboard');
+      cause: values.cause,
+      photo: values.photo,
+    };
+    const result = await addWasteLogAR(log);
+    if (result.status === 'ok') {
+      toast({
+        title: 'Log Submitted',
+        description: 'Your waste log has been successfully recorded.',
+      });
+      router.push('/dashboard');
+    } else {
+      toast({
+        title: 'Error',
+        description: 'Failed to submit waste log: ' + (result.error || 'Unknown error'),
+        variant: 'destructive',
+      });
+    }
   }
 
   if (!isClient) {
