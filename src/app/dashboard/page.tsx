@@ -25,7 +25,8 @@ import useWasteLive from '@/hooks/useWasteLive';
 import { WasteTrendsChart } from '@/components/dashboard/waste-trends-chart';
 import { TopMaterialsChart } from '@/components/dashboard/top-materials-chart';
 import { RecentLogsTable } from '@/components/dashboard/recent-logs-table';
-import GISMapExample from '@/components/GISMapExample';
+import dynamic from 'next/dynamic';
+const GISMapExample = dynamic(() => import('@/components/GISMapExample'), { ssr: false });
 import { Button } from '@/components/ui/button';
 import { Calendar as CalendarIcon, Download, Search } from 'lucide-react';
 import {
@@ -38,15 +39,13 @@ import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { DiversionRateChart } from '@/components/dashboard/diversion-rate-chart';
 import { Separator } from '@/components/ui/separator';
-import { AIChat } from '@/components/dashboard/ai-chat';
-import AISafetyMonitor from '@/components/ai/AISafetyMonitor';
-import RiskPredictor from '@/components/ai/RiskPredictor';
-import ARBlueprintViewer from '@/components/ar-vr/ARBlueprintViewer';
-
-import BlockchainEventsPanel from '@/components/dashboard/blockchain-events';
-
+const AIChat = dynamic<any>(() => import('@/components/dashboard/ai-chat').then((mod) => mod.AIChat), { ssr: false });
+const AISafetyMonitor = dynamic(() => import('@/components/ai/AISafetyMonitor'), { ssr: false });
+const RiskPredictor = dynamic(() => import('@/components/ai/RiskPredictor'), { ssr: false });
+const ARBlueprintViewer = dynamic(() => import('@/components/ar-vr/ARBlueprintViewer'), { ssr: false });
+const BlockchainEventsPanel = dynamic(() => import('@/components/dashboard/blockchain-events'), { ssr: false });
 // Importing VR Safety Training
-import VRSafetyTraining from '@/components/ar-vr/VRSafetyTraining.js';
+const VRSafetyTraining = dynamic(() => import('@/components/ar-vr/VRSafetyTraining.js'), { ssr: false });
 
 export default function DashboardPage() {
   const [date, setDate] = React.useState<DateRange | undefined>();
