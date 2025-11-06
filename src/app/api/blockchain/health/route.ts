@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 import { NextRequest, NextResponse } from 'next/server';
 
 // Initialize provider
-const provider = new ethers.providers.JsonRpcProvider(process.env.ETH_RPC_URL);
+const provider = new ethers.providers.JsonRpcProvider(process.env.NEXT_PUBLIC_ETH_RPC_URL);
 const wallet = new ethers.Wallet(process.env.MAINNET_PRIVATE_KEY || '', provider);
 
 // Contract addresses
