@@ -128,8 +128,4 @@ This repository currently has no license file. Add a `LICENSE` if you want to sp
 
 Last updated: 2025-11-06
 
-# Firebase Studio
 
-This is a NextJS starter in Firebase Studio.
-
-To get started, take a look at src/app/page.tsx.
