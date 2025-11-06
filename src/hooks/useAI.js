@@ -1,3 +1,4 @@
+"use client";
 // AI hook
 import { useState, useEffect, useRef } from 'react';
 import { fetchAISafetyData } from '../services/aiService';
