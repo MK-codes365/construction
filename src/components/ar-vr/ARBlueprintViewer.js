@@ -12,6 +12,16 @@ const ARBlueprintViewer = () => {
   const blueprints = useAR();
   const [wasteLogs, setWasteLogs] = useState([]);
   const mountRef = useRef(null);
+  const materialColors = {
+    Concrete: 0x888888,
+    Wood: 0x8d5524,
+    Metal: 0x00bcd4,
+    Plastic: 0xff9800,
+    Glass: 0x90caf9,
+    Other: 0x43a047,
+  };
+
+  // Chart component removed from AR file — chart/legend live in VR view now
 
   useEffect(() => {
     fetchWasteLogs().then(res => {
@@ -42,21 +52,20 @@ const ARBlueprintViewer = () => {
     scene.add(gridHelper);
 
     // Add waste log markers as spheres with labels and colors
-    const materialColors = {
-      Concrete: 0x888888,
-      Wood: 0x8d5524,
-      Metal: 0x00bcd4,
-      Plastic: 0xff9800,
-      Glass: 0x90caf9,
-      Other: 0x43a047,
-    };
+    const markers = [];
     wasteLogs.slice(0, 10).forEach((log, idx) => {
       const geometry = new THREE.SphereGeometry(0.2, 32, 32);
-      const color = materialColors[log.materialType] || 0x00ff00;
+      // normalize material type to canonical key (case-insensitive + trim)
+      const rawMat = (log.materialType || '').toString().trim();
+      const canonical = Object.keys(materialColors).find(k => k.toLowerCase() === rawMat.toLowerCase()) || (rawMat || 'Other');
+      const color = materialColors[canonical] || 0x00ff00;
       const material = new THREE.MeshBasicMaterial({ color });
       const sphere = new THREE.Mesh(geometry, material);
       sphere.position.set((idx % 5) - 2, 0.2, Math.floor(idx / 5) - 1);
       scene.add(sphere);
+      // store canonical material and log for tooltip/legend consistency
+      sphere.userData.log = { ...log, materialType: canonical };
+      markers.push(sphere);
 
       // Add label using CSS2DObject
       const labelDiv = document.createElement('div');
@@ -67,12 +76,48 @@ const ARBlueprintViewer = () => {
       labelDiv.style.borderRadius = '4px';
       labelDiv.style.fontSize = '0.8em';
       labelDiv.style.pointerEvents = 'none';
-      labelDiv.innerText = log.materialType;
+  labelDiv.innerText = canonical;
       const labelObj = new CSS2DObject(labelDiv);
       labelObj.position.set(sphere.position.x, sphere.position.y + 0.3, sphere.position.z);
       scene.add(labelObj);
       sphere.userData.labelObj = labelObj;
     });
+
+    // Tooltip div for hover info
+    const tooltip = document.createElement('div');
+    tooltip.style.position = 'absolute';
+    tooltip.style.padding = '6px 8px';
+    tooltip.style.background = 'rgba(0,0,0,0.8)';
+    tooltip.style.color = '#fff';
+    tooltip.style.borderRadius = '6px';
+    tooltip.style.fontSize = '0.85em';
+    tooltip.style.pointerEvents = 'none';
+    tooltip.style.display = 'none';
+    mountRef.current.appendChild(tooltip);
+
+    // Raycaster for hover detection
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    const onMouseMove = (event) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(markers);
+      if (intersects.length > 0) {
+        const hit = intersects[0].object;
+        const log = hit.userData.log || {};
+        tooltip.style.left = `${event.clientX - rect.left + 12}px`;
+        tooltip.style.top = `${event.clientY - rect.top + 12}px`;
+              tooltip.innerHTML = `<strong>${log.materialType || 'Unknown'}</strong><br/>Qty: ${log.quantity || '-'} kg<br/>Cause: ${log.cause || '-'}<br/>Site: ${log.site || '-'} `;
+        tooltip.style.display = 'block';
+      } else {
+        tooltip.style.display = 'none';
+      }
+    };
+
+    renderer.domElement.addEventListener('mousemove', onMouseMove);
 
     // Camera controls
     let controls;
@@ -95,12 +140,17 @@ const ARBlueprintViewer = () => {
 
     // Cleanup
     return () => {
-      if (mountRef.current && renderer && renderer.domElement) {
-        mountRef.current.removeChild(renderer.domElement);
-      }
-      if (mountRef.current && labelRenderer && labelRenderer.domElement) {
-        mountRef.current.removeChild(labelRenderer.domElement);
-      }
+      try {
+        renderer.domElement.removeEventListener('mousemove', onMouseMove);
+      } catch (e) {}
+      try { mountRef.current.removeChild(renderer.domElement); } catch (e) {}
+      try { mountRef.current.removeChild(labelRenderer.domElement); } catch (e) {}
+      try { mountRef.current.removeChild(tooltip); } catch (e) {}
+      // dispose geometries/materials
+      markers.forEach(m => {
+        try { m.geometry.dispose(); } catch (e) {}
+        try { m.material.dispose(); } catch (e) {}
+      });
     };
   }, [wasteLogs]);
 
@@ -113,9 +163,11 @@ const ARBlueprintViewer = () => {
             ref={mountRef}
             style={{ width: 600, height: 400, background: '#222', borderRadius: '8px', marginBottom: '1rem', boxShadow: '0 2px 12px rgba(0,0,0,0.15)' }}
           />
+            {/* Material chart removed from AR view per user request (kept in VR view) */}
         </div>
         <div style={{ flex: 1 }}>
           <h2 style={{ marginBottom: '1rem' }}>Blueprints</h2>
+          {/* Legend removed from AR view - moved to VR Safety Training as requested */}
           {blueprints.length > 0 ? (
             <div style={{ display: 'grid', gap: '1.5rem' }}>
               {blueprints.map((bp, idx) => (

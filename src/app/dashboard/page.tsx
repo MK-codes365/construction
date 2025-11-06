@@ -21,9 +21,11 @@ import { projectSites, materialTypes } from '@/lib/data';
 import type { WasteLog } from '@/lib/types';
 import { fetchWasteLogs } from '@/services/arService';
 import { StatsCards } from '@/components/dashboard/stats-cards';
+import useWasteLive from '@/hooks/useWasteLive';
 import { WasteTrendsChart } from '@/components/dashboard/waste-trends-chart';
 import { TopMaterialsChart } from '@/components/dashboard/top-materials-chart';
 import { RecentLogsTable } from '@/components/dashboard/recent-logs-table';
+import GISMapExample from '@/components/GISMapExample';
 import { Button } from '@/components/ui/button';
 import { Calendar as CalendarIcon, Download, Search } from 'lucide-react';
 import {
@@ -77,6 +79,31 @@ export default function DashboardPage() {
       });
     }
   }, [isClient]);
+
+  // Live subscription: append incoming waste logs pushed by the GIS backend.
+  // This provides near-real-time updates to the dashboard charts without a
+  // full reload. useWasteLive is a hook and must be called at the top level of
+  // the component; it accepts an `enabled` flag so it is safe to call here.
+  const handleIncoming = React.useCallback((payload: any) => {
+    const incoming: WasteLog = {
+      id: payload.id,
+      site: payload.site,
+      materialType: payload.materialType,
+      quantity: Number(payload.quantity) || 0,
+      disposalMethod: payload.disposalMethod || 'Unknown',
+      date: payload.date ? new Date(payload.date) : new Date(),
+      binId: payload.binId || '',
+      cause: payload.cause || '',
+    };
+
+    setWasteLogs((prev) => {
+      if (prev.find((l) => l.id === incoming.id)) return prev;
+      return [incoming, ...prev];
+    });
+  }, []);
+
+  // Call the hook unconditionally (hook handles `enabled` guard internally).
+  useWasteLive(handleIncoming, isClient);
 
   const filteredLogs = React.useMemo(() => {
     if (!isClient || !date?.from || !date?.to) {
@@ -208,6 +235,18 @@ export default function DashboardPage() {
       </Card>
       
       <StatsCards logs={filteredLogs} selectedSite={selectedSite} />
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Project Sites Map</CardTitle>
+          <CardDescription>
+            Spatial view of project sites and recent waste logs. Use filters to focus the map.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <GISMapExample />
+        </CardContent>
+      </Card>
       
       <div className="grid gap-6 md:grid-cols-2">
         <Card>

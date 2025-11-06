@@ -1,6 +1,16 @@
 'use client';
 
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from 'recharts';
+import {
+  Area,
+  AreaChart,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Brush,
+  ReferenceLine,
+} from 'recharts';
 
 import {
   ChartConfig,
@@ -45,17 +55,21 @@ export function WasteTrendsChart({
     }
   });
 
+  // compute a simple average for a reference line
+  const avg = dailyWaste.reduce((s, d) => s + d.total, 0) / Math.max(1, dailyWaste.length);
+
   return (
     <ChartContainer config={chartConfig} className="h-[350px] w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={dailyWaste}>
-          <XAxis
-            dataKey="date"
-            stroke="#888888"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-          />
+        <AreaChart data={dailyWaste} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
+          <defs>
+            <linearGradient id="gradTotal" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--color-total)" stopOpacity={0.85} />
+              <stop offset="100%" stopColor="var(--color-total)" stopOpacity={0.08} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.06} />
+          <XAxis dataKey="date" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
           <YAxis
             stroke="#888888"
             fontSize={12}
@@ -63,17 +77,19 @@ export function WasteTrendsChart({
             axisLine={false}
             tickFormatter={(value) => `${value / 1000}k kg`}
           />
-          <ChartTooltip
-            cursor={false}
-            content={<ChartTooltipContent indicator="dot" />}
-          />
-          <Bar
+          <Tooltip content={<ChartTooltipContent indicator="dot" />} />
+          <ReferenceLine y={avg} strokeOpacity={0.2} strokeDasharray="3 6" label={{ value: `Avg ${Math.round(avg)} kg`, position: 'top' }} />
+          <Area
+            type="monotone"
             dataKey="total"
-            fill="var(--color-total)"
-            radius={4}
-            {...chartConfig.total}
+            stroke="var(--color-total)"
+            fillOpacity={1}
+            fill="url(#gradTotal)"
+            activeDot={{ r: 6 }}
+            animationDuration={700}
           />
-        </BarChart>
+          <Brush dataKey="date" height={24} stroke="#ccc" travellerWidth={8} />
+        </AreaChart>
       </ResponsiveContainer>
     </ChartContainer>
   );

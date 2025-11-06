@@ -2,6 +2,16 @@
 
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+  DialogClose,
+} from '@/components/ui/dialog';
 import { Calendar } from '@/components/ui/calendar';
 import {
   Card,
@@ -37,7 +47,10 @@ import { format, isWithinInterval } from 'date-fns';
 import { CalendarIcon, Download } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { projectSites, wasteLogs } from '@/lib/data';
+import { projectSites } from '@/lib/data';
+import { fetchWasteLogs } from '@/services/arService';
+import useWasteLive from '@/hooks/useWasteLive';
+import React, { useEffect, useState, useCallback } from 'react';
 import type { WasteLog } from '@/lib/types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -69,6 +82,16 @@ const convertToCSV = (data: any[], header: string[]) => {
   ].join('\r\n');
   return csv;
 };
+
+// Small KPI box used in the Live Reports card
+function KpiBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="p-3 rounded border bg-gradient-to-br from-white/2 to-transparent">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="text-2xl font-semibold mt-1">{value}</div>
+    </div>
+  );
+}
 
 // Function to trigger file download
 const downloadFile = async (content: string, filename: string, mimeType: string, description: string) => {
@@ -150,7 +173,10 @@ export default function ReportsPage() {
     },
   });
 
-  const generateReport = (values: ReportValues, filteredLogs: WasteLog[]) => {
+  // snapshot dialog open state
+  const [snapshotOpen, setSnapshotOpen] = useState(false);
+
+  const generateReport = async (values: ReportValues, filteredLogs: WasteLog[], anchor = true) => {
     const { reportType, format: fileFormat } = values;
     const dateStr = format(new Date(), 'yyyy-MM-dd');
     const filename = `${reportType}-report-${dateStr}.${fileFormat}`;
@@ -249,7 +275,22 @@ export default function ReportsPage() {
         reportData,
         reportType === 'full' ? headers : Object.keys(reportData[0] || {})
       );
-  downloadFile(csvData, filename, 'text/csv;charset=utf-8;', reportTitle);
+
+      if (anchor) {
+        // anchor then download
+        await downloadFile(csvData, filename, 'text/csv;charset=utf-8;', reportTitle);
+      } else {
+        // download without anchoring
+        const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
     } else if (fileFormat === 'pdf') {
       const pdfHeaders =
         reportType === 'full' ? headers : Object.keys(reportData[0] || {});
@@ -258,7 +299,8 @@ export default function ReportsPage() {
       );
       // For PDF, hash the raw data string
       const pdfContent = JSON.stringify({ title: reportTitle, headers: pdfHeaders, body: pdfBody });
-      anchorReportToBlockchain(sha256(pdfContent).toString(), reportTitle).then((result) => {
+      if (anchor) {
+        const result = await anchorReportToBlockchain(sha256(pdfContent).toString(), reportTitle);
         if (result.status === 'ok') {
           downloadPDF(reportTitle, pdfHeaders, pdfBody, filename, { txHash: result.txHash, blockNumber: result.blockNumber });
           window.alert(`Report anchored to blockchain!\nTx: ${result.txHash}\nBlock: ${result.blockNumber}`);
@@ -266,7 +308,9 @@ export default function ReportsPage() {
           downloadPDF(reportTitle, pdfHeaders, pdfBody, filename);
           window.alert(`Blockchain anchoring failed: ${result.message}`);
         }
-      });
+      } else {
+        downloadPDF(reportTitle, pdfHeaders, pdfBody, filename);
+      }
     }
 
     toast({
@@ -295,7 +339,7 @@ export default function ReportsPage() {
       });
       return;
     }
-    const filteredLogs = wasteLogs.filter((log) => {
+    const filteredLogs = liveLogs.filter((log) => {
       const inDateRange = isWithinInterval(log.date, {
         start: dateRange.from,
         end: dateRange.to,
@@ -318,6 +362,47 @@ export default function ReportsPage() {
     generateReport(values, filteredLogs);
   }
 
+  // --- Real-time live data state ---
+  const [liveLogs, setLiveLogs] = useState<WasteLog[]>([]);
+
+  // initial load
+  useEffect(() => {
+    let mounted = true;
+    fetchWasteLogs().then((res) => {
+      if (!mounted) return;
+      if (res.status === 'ok') {
+        const logs: WasteLog[] = res.logs.map((log: any) => ({
+          ...log,
+          date: log.date ? new Date(log.date) : new Date(),
+        }));
+        setLiveLogs(logs);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleIncoming = useCallback((payload: any) => {
+    const incoming: WasteLog = {
+      id: payload.id,
+      site: payload.site,
+      materialType: payload.materialType,
+      quantity: Number(payload.quantity) || 0,
+      disposalMethod: payload.disposalMethod || 'Unknown',
+      date: payload.date ? new Date(payload.date) : new Date(),
+      binId: payload.binId || '',
+      cause: payload.cause || '',
+    };
+    setLiveLogs((prev) => {
+      if (prev.find((l) => l.id === incoming.id)) return prev;
+      return [incoming, ...prev];
+    });
+  }, []);
+
+  // subscribe to live feed; hook is safe to call in component body
+  useWasteLive(handleIncoming, true);
+
   const getSiteById = (id: string) =>
     projectSites.find((site) => site.id === id);
 
@@ -327,6 +412,139 @@ export default function ReportsPage() {
         title="Automated Reports"
         description="Generate and download sustainability and waste summary reports."
       />
+      {/* Live KPIs & Detailed Report (real-time) */}
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle>Live Reports & KPIs</CardTitle>
+          <CardDescription>
+            Real-time KPIs and recent waste logs feed. This updates as new logs are
+            submitted.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            {/* Compute KPIs */}
+            <KpiBox label="Total Waste (kg)" value={
+              liveLogs.reduce((s, l) => s + l.quantity, 0).toFixed(2)
+            } />
+            <KpiBox label="Recycled (kg)" value={
+              liveLogs.filter(l => l.disposalMethod === 'Recycled').reduce((s, l) => s + l.quantity, 0).toFixed(2)
+            } />
+            <KpiBox label="Diversion Rate" value={
+              (() => {
+                const total = liveLogs.reduce((s, l) => s + l.quantity, 0);
+                const recycled = liveLogs.filter(l => l.disposalMethod === 'Recycled').reduce((s, l) => s + l.quantity, 0);
+                return total > 0 ? ((recycled / total) * 100).toFixed(2) + '%' : '0%';
+              })()
+            } />
+          </div>
+
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">Showing latest {Math.min(50, liveLogs.length)} logs (real-time)</div>
+            <div className="flex gap-2">
+              <Dialog open={snapshotOpen} onOpenChange={setSnapshotOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Download className="mr-2" />Download Snapshot
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Download Snapshot</DialogTitle>
+                    <DialogDescription>
+                      Choose snapshot options and whether to anchor the export to the blockchain.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-3">
+                    <div>
+                      <label className="block text-sm mb-1">Scope</label>
+                      <select defaultValue="latest" id="snapshot-scope" className="w-full p-2 border rounded">
+                        <option value="latest">Latest N logs</option>
+                        <option value="range">Date range (from live feed)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm mb-1">Latest count</label>
+                      <input id="snapshot-count" defaultValue={200} type="number" className="w-full p-2 border rounded" />
+                    </div>
+                    <div>
+                      <label className="inline-flex items-center gap-2">
+                        <input id="snapshot-anchor" type="checkbox" className="form-checkbox" />
+                        <span className="text-sm">Anchor to blockchain</span>
+                      </label>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <DialogClose asChild>
+                      <Button variant="ghost">Cancel</Button>
+                    </DialogClose>
+                    <Button onClick={async (e) => {
+                      // read options
+                      const scopeEl = document.getElementById('snapshot-scope') as HTMLSelectElement | null;
+                      const countEl = document.getElementById('snapshot-count') as HTMLInputElement | null;
+                      const anchorEl = document.getElementById('snapshot-anchor') as HTMLInputElement | null;
+                      const scope = scopeEl ? scopeEl.value : 'latest';
+                      const count = countEl ? Math.max(1, Number(countEl.value) || 200) : 200;
+                      const anchor = anchorEl ? anchorEl.checked : false;
+
+                      const values = form.getValues() as ReportValues;
+                      let snapshotLogs: WasteLog[] = [];
+                      if (scope === 'latest') {
+                        snapshotLogs = liveLogs.slice(0, count);
+                      } else {
+                        const dr = values.dateRange;
+                        if (!dr || !dr.from || !dr.to || dr.from > dr.to) {
+                          toast({ variant: 'destructive', title: 'Invalid date range', description: 'Please set a valid date range in the Report Generator form.' });
+                          return;
+                        }
+                        snapshotLogs = liveLogs.filter(l => isWithinInterval(l.date, { start: dr.from, end: dr.to }));
+                      }
+
+                      if (!snapshotLogs.length) {
+                        toast({ variant: 'destructive', title: 'No data', description: 'No logs match the selected snapshot options.' });
+                        return;
+                      }
+
+                      await generateReport(values, snapshotLogs, anchor);
+                      // close dialog
+                      setSnapshotOpen(false);
+                    }}>
+                      Download
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+
+          <div className="overflow-auto max-h-[360px] border rounded">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-background">
+                <tr>
+                  <th className="p-2 text-left">Date</th>
+                  <th className="p-2 text-left">Site</th>
+                  <th className="p-2 text-left">Material</th>
+                  <th className="p-2 text-right">Qty (kg)</th>
+                  <th className="p-2 text-left">Method</th>
+                  <th className="p-2 text-left">Cause</th>
+                </tr>
+              </thead>
+              <tbody>
+                {liveLogs.slice(0, 50).map((log) => (
+                  <tr key={log.id} className="border-t">
+                    <td className="p-2">{format(log.date, 'yyyy-MM-dd HH:mm')}</td>
+                    <td className="p-2">{log.site}</td>
+                    <td className="p-2">{log.materialType}</td>
+                    <td className="p-2 text-right">{log.quantity}</td>
+                    <td className="p-2">{log.disposalMethod}</td>
+                    <td className="p-2">{log.cause || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
       <div className="max-w-2xl mx-auto">
         <Card>
           <CardHeader>

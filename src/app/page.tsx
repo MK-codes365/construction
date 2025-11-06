@@ -231,7 +231,7 @@ export default function LandingPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.4 }}
               >
-                <Link href="/dashboard" passHref>
+                <Link href="/login" passHref>
                   <Button
                     size="lg"
                     className="text-lg py-8 px-12 transform transition-transform duration-300 hover:scale-110"

@@ -1,13 +1,24 @@
-import React, { useState } from 'react';
+"use client";
+
+import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { projectSites, wasteLogs } from '@/lib/data';
+import configureLeafletDefaultIcon from '@/lib/leafletIcon';
+
 
 const defaultPosition = projectSites.length
   ? [projectSites[0].lat, projectSites[0].lng]
   : [0, 0];
 
 export default function ProjectSitesOSMMap() {
+  useEffect(() => {
+    try {
+      configureLeafletDefaultIcon();
+    } catch (e) {
+      // ignore
+    }
+  }, []);
   const [selected, setSelected] = useState<any | null>(null);
 
   // Helper to get site by name

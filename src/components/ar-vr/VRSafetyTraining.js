@@ -15,6 +15,38 @@ const VRSafetyTraining = () => {
   const [wasteLogs, setWasteLogs] = useState([]);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const mountRef = useRef(null);
+  const materialColors = {
+    Concrete: 0x888888,
+    Wood: 0x8d5524,
+    Metal: 0x00bcd4,
+    Plastic: 0xff9800,
+    Glass: 0x90caf9,
+    Other: 0x43a047,
+  };
+
+  // Simple inline bar chart component
+  const BarChart = ({ items }) => {
+    if (!items || items.length === 0) return <div style={{ color: '#aaa' }}>No data to chart.</div>;
+    const max = Math.max(...items.map(i => i.value));
+    const height = 120;
+    return (
+      <svg width="100%" height={height} viewBox={`0 0 ${items.length * 80} ${height}`} preserveAspectRatio="xMidYMid meet">
+        {items.map((it, idx) => {
+          const w = 40;
+          const x = idx * 80 + 20;
+          const h = max > 0 ? (it.value / max) * (height - 30) : 0;
+          const y = height - h - 20;
+          return (
+            <g key={it.key}>
+              <rect x={x} y={y} width={w} height={h} rx={4} ry={4} fill={it.color} />
+              <text x={x + w/2} y={height - 6} fontSize={12} fill="#111" textAnchor="middle">{it.key}</text>
+              <text x={x + w/2} y={y - 4} fontSize={11} fill="#111" textAnchor="middle">{it.value}</text>
+            </g>
+          );
+        })}
+      </svg>
+    );
+  };
 
   useEffect(() => {
     fetchWasteLogs().then(res => {
@@ -57,14 +89,21 @@ const VRSafetyTraining = () => {
       Other: 0x43a047,
     };
 
-    // Add all logs as cubes with labels
+    // Add all logs as cubes with labels and enable hover tooltip
+    const markers = [];
     wasteLogs.slice(0, 10).forEach((log, idx) => {
+      // normalize materialType to canonical key (trim + case-insensitive)
+      const rawMat = (log.materialType || '').toString().trim();
+      const canonical = Object.keys(materialColors).find(k => k.toLowerCase() === rawMat.toLowerCase()) || (rawMat || 'Other');
       const cubeGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-      const color = materialColors[log.materialType] || 0x8e24aa;
+      const color = materialColors[canonical] || 0x8e24aa;
       const cubeMaterial = new THREE.MeshBasicMaterial({ color });
       const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
       cube.position.set((idx % 5) - 2, 0.25, Math.floor(idx / 5) - 1);
       scene.add(cube);
+      // attach normalized materialType for tooltip/legend/chart consistency
+      cube.userData.log = { ...log, materialType: canonical };
+      markers.push(cube);
 
       // Add label using CSS2DObject
       const labelDiv = document.createElement('div');
@@ -75,12 +114,47 @@ const VRSafetyTraining = () => {
       labelDiv.style.borderRadius = '4px';
       labelDiv.style.fontSize = '0.8em';
       labelDiv.style.pointerEvents = 'none';
-      labelDiv.innerText = `${log.materialType} (${log.quantity}kg)`;
+      labelDiv.innerText = `${canonical} (${log.quantity}kg)`;
       const labelObj = new CSS2DObject(labelDiv);
       labelObj.position.set(cube.position.x, cube.position.y + 0.3, cube.position.z);
       scene.add(labelObj);
       cube.userData.labelObj = labelObj;
     });
+
+    // Tooltip for hover
+    const tooltip = document.createElement('div');
+    tooltip.style.position = 'absolute';
+    tooltip.style.padding = '6px 8px';
+    tooltip.style.background = 'rgba(0,0,0,0.8)';
+    tooltip.style.color = '#fff';
+    tooltip.style.borderRadius = '6px';
+    tooltip.style.fontSize = '0.85em';
+    tooltip.style.pointerEvents = 'none';
+    tooltip.style.display = 'none';
+    mountRef.current.appendChild(tooltip);
+
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    const onMouseMove = (event) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(markers);
+      if (intersects.length > 0) {
+        const hit = intersects[0].object;
+        const log = hit.userData.log || {};
+        tooltip.style.left = `${event.clientX - rect.left + 12}px`;
+        tooltip.style.top = `${event.clientY - rect.top + 12}px`;
+        tooltip.innerHTML = `<strong>${log.materialType || 'Unknown'}</strong><br/>Qty: ${log.quantity || '-'} kg<br/>Cause: ${log.cause || '-'}<br/>Site: ${log.site || '-'} `;
+        tooltip.style.display = 'block';
+      } else {
+        tooltip.style.display = 'none';
+      }
+    };
+
+    renderer.domElement.addEventListener('mousemove', onMouseMove);
 
     // Camera controls
     let controls;
@@ -103,19 +177,53 @@ const VRSafetyTraining = () => {
 
     // Cleanup
     return () => {
-      if (mountRef.current && renderer && renderer.domElement) {
-        mountRef.current.removeChild(renderer.domElement);
-      }
-      if (mountRef.current && labelRenderer && labelRenderer.domElement) {
-        mountRef.current.removeChild(labelRenderer.domElement);
-      }
+      try { renderer.domElement.removeEventListener('mousemove', onMouseMove); } catch (e) {}
+      try { mountRef.current.removeChild(renderer.domElement); } catch (e) {}
+      try { mountRef.current.removeChild(labelRenderer.domElement); } catch (e) {}
+      try { mountRef.current.removeChild(tooltip); } catch (e) {}
+      markers.forEach(m => {
+        try { m.geometry.dispose(); } catch (e) {}
+        try { m.material.dispose(); } catch (e) {}
+      });
     };
   }, [wasteLogs, selectedIdx]);
 
   return (
     <div>
       <h2>VR Safety Training (3D)</h2>
-      <div ref={mountRef} style={{width: 600, height: 400, background: '#222', borderRadius: '8px', marginBottom: '1rem'}} />
+      <div ref={mountRef} style={{width: 600, height: 400, background: '#222', borderRadius: '8px', marginBottom: '1rem', position: 'relative'}} />
+      {/* Chart and legend area below VR */}
+      <div style={{ width: 600, marginTop: 8, background: '#111', padding: '0.75rem', borderRadius: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h4 style={{ margin: 0, color: '#ddd' }}>Material Quantities</h4>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            {Object.keys(materialColors).map((m) => (
+              <div key={m} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ width: 14, height: 14, borderRadius: 4, display: 'inline-block', background: `#${(materialColors[m]).toString(16).padStart(6,'0')}` }} />
+                <span style={{ fontSize: '0.85em', color: '#ddd' }}>{m}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ marginTop: 8 }}>
+          {(() => {
+            const slice = wasteLogs.slice(0, 10);
+            const agg = {};
+            slice.forEach(l => {
+              const raw = (l.materialType || '').toString().trim();
+              const key = Object.keys(materialColors).find(k => k.toLowerCase() === raw.toLowerCase()) || (raw || 'Other');
+              const q = Number(l.quantity) || 0;
+              agg[key] = (agg[key] || 0) + q;
+            });
+            // produce items in canonical material order so bars align with legend
+            const canonicalOrder = Object.keys(materialColors);
+            const items = canonicalOrder.map(k => ({ key: k, value: Math.round((agg[k] || 0) * 100) / 100, color: `#${(materialColors[k] || 0x00ff00).toString(16).padStart(6,'0')}` }));
+            // filter out zero-value items so chart focuses on present materials (optional)
+            const visible = items.filter(it => it.value > 0);
+            return <BarChart items={visible} />;
+          })()}
+        </div>
+      </div>
       {wasteLogs.length > 0 ? (
         <div>
           <strong>Scenario Selection:</strong>
