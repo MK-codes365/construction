@@ -1,0 +1,30 @@
+# Render service manifest for the blockchain-listener
+# Deploy this repo/folder to Render by connecting your GitHub repo and using this
+# file as the manifest in the root of the service folder. Sensitive values
+# (private keys, RPC credentials) should be added as secrets in the Render
+# dashboard; leave values blank here.
+
+services:
+  - type: web
+    name: blockchain-listener
+    env: node
+    region: oregon
+    branch: main
+    plan: starter
+    instanceType: Starter
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "4001"
+    # Do NOT store private keys in this file. Add the following as secrets
+    # in the Render dashboard for this service after creating it:
+    #   ETH_RPC_URL  -> https://mainnet.infura.io/v3/<PROJECT_ID> (or testnet URL)
+    #   MAINNET_PRIVATE_KEY -> <your_private_key_here> (mark as secret)
+    # If you want to run in development mode on Render, set PRIVATE_KEY instead.
+    envGroups: []
+    healthCheckPath: /health
+    # If you prefer to use the Dockerfile in this folder, uncomment the line below
+    # dockerfilePath: Dockerfile

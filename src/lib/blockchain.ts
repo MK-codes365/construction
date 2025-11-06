@@ -6,10 +6,24 @@ export async function anchorReportToBlockchain(hash: string, description: string
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ hash, description }),
     });
-    if (!res.ok) {
-      return { status: 'error', message: `HTTP ${res.status}` };
+    // Try to parse JSON body even when the response status is an error so the
+    // client receives the backend's explanatory message (not just "HTTP 500").
+    let json: any = null;
+    try {
+      json = await res.json();
+    } catch (e) {
+      // If body isn't JSON, fall back to generic error message for non-ok
+      if (!res.ok) {
+        return { status: 'error', message: `HTTP ${res.status}` };
+      }
+      throw e;
     }
-    return await res.json();
+
+    // If the backend returned a non-2xx status but included a JSON payload,
+    // forward that payload so the UI gets the detailed error message.
+    if (!res.ok) return json;
+
+    return json;
   } catch (err) {
     return { status: 'error', message: err instanceof Error ? err.message : String(err) };
   }

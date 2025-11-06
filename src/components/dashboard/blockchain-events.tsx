@@ -13,7 +13,8 @@ export default function BlockchainEventsPanel() {
 
   useEffect(() => {
     async function fetchEvents() {
-      const res = await fetch('/blockchain/events');
+      // Use the Next API route so this works when deployed to Vercel
+      const res = await fetch('/api/blockchain/events');
       const data = await res.json();
       if (data.status === 'ok') setEvents(data.events);
     }

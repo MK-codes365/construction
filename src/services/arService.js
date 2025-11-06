@@ -2,7 +2,7 @@
 
 export const fetchBlueprints = async () => {
   try {
-    const response = await fetch('http://localhost:4002/ar/blueprints');
+  const response = await fetch('/api/ar/blueprints');
     if (!response.ok) throw new Error('Network response was not ok');
     return await response.json();
   } catch (error) {
@@ -12,7 +12,7 @@ export const fetchBlueprints = async () => {
 
 export const fetchWasteLogs = async () => {
   try {
-    const response = await fetch('http://localhost:4002/ar/waste-logs');
+  const response = await fetch('/api/ar/waste-logs');
     if (!response.ok) throw new Error('Network response was not ok');
     return await response.json();
   } catch (error) {
@@ -22,10 +22,23 @@ export const fetchWasteLogs = async () => {
 
 export const addWasteLogAR = async (log) => {
   try {
-    const response = await fetch('http://localhost:4002/ar/waste-logs', {
+  // Sanitize the log before sending — File/FileList objects are not JSON-serializable
+  const safeLog = { ...log };
+  try {
+    if (safeLog.photo) {
+      // photo may be a FileList or array-like; extract basic metadata only
+      const files = Array.from(safeLog.photo instanceof FileList ? safeLog.photo : (Array.isArray(safeLog.photo) ? safeLog.photo : [safeLog.photo]));
+      safeLog.photo = files.map((f) => ({ name: f?.name, size: f?.size, type: f?.type }));
+    }
+  } catch (e) {
+    // On any error sanitizing, drop the photo to avoid breaking the request
+    safeLog.photo = null;
+  }
+
+  const response = await fetch('/api/ar/waste-logs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(log),
+      body: JSON.stringify(safeLog),
     });
     if (!response.ok) throw new Error('Network response was not ok');
     return await response.json();
